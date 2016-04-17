@@ -8,20 +8,23 @@ from conf import Config
 
 CONFIG_PATH = 'reporter.cfg'
 
+BACKENDS = {}
 
-class CSVBackend(object):
-    extension = 'csv'
+def backend(extension):
+    def wrapper(func):
+        global BACKENDS
+        BACKENDS[extension] = func
+        return func
+    return wrapper
 
-    @staticmethod
-    def read_table(fileobj):
-        from csv import reader
-        csv_reader = reader(fileobj)
-        headers = csv_reader.next()
-        return headers, csv_reader
+@backend('csv')
+def read_table(fileobj):
+    from csv import reader
+    csv_reader = reader(fileobj)
+    headers = csv_reader.next()
+    return headers, csv_reader
 
-BACKENDS = (CSVBackend,)
-
-
+    
 class Reporter(object):
     def __init__(self, config_path):
         self.config = Config(config_path)
