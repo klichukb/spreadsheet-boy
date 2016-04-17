@@ -50,7 +50,7 @@ class Reporter(object):
         sheet.update_cells(header_cells)
 
     def write_rows(self, sheet, rows, header_count):
-        batch_size = 100
+        batch_size = 1000
         batch = []
         row_count = 0
         start_row = 2
@@ -89,11 +89,11 @@ class Reporter(object):
     def _import_single(self, spec, fl):
         file_path = spec('file')
         ext = os.path.splitext(file_path)[1][1:]
-        backend = next((backend for backend in BACKENDS if backend.extension == ext), None)
+        backend = BACKENDS.get(ext)
         if not backend:
             raise ValueError('Input source of format "{}" is not supported'.format(ext.upper()))
 
-        headers, rows = backend.read_table(fl)
+        headers, rows = backend(fl)
         gdoc = self.client.open_by_key(spec('key'))
         sheet = gdoc.add_worksheet(self.get_sheet_name(spec), 1, len(headers))
         self.write_headers(sheet, headers)
