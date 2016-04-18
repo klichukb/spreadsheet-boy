@@ -1,6 +1,8 @@
 #! /bin/env python
+#! -*- encoding: utf-8 -*-
+from __future__ import unicode_literals
 
-import sys
+
 from argparse import ArgumentParser
 import logging
 
@@ -20,7 +22,7 @@ def get_parser():
 def main():
     # read configuration
     parser = get_parser()
-    args = parser.parse_args(sys.argv[1:])
+    args = parser.parse_args()
     config = Config(args.config)
     
     # configure logging
