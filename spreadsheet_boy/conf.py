@@ -10,6 +10,7 @@ except ImportError:
 DEFAULT_CONFIG = {
     'app': {
         'scope': 'https://spreadsheets.google.com/feeds',
+        'log_level': 'INFO',
     }
 }
 
