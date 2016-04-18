@@ -1,18 +1,23 @@
+#! -*- encoding: utf-8 -*-
+
+from __future__ import unicode_literals
+
 import os
 from datetime import datetime
+from logging import getLogger
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 from conf import Config
 
-CONFIG_PATH = 'reporter.cfg'
-
 BACKENDS = {}
+
+logger = getLogger('spreadsheets.reporter')
+
 
 def backend(extension):
     def wrapper(func):
-        global BACKENDS
         BACKENDS[extension] = func
         return func
     return wrapper
@@ -26,8 +31,8 @@ def read_table(fileobj):
 
     
 class Reporter(object):
-    def __init__(self, config_path):
-        self.config = Config(config_path)
+    def __init__(self, config):
+        self.config = config
         self.specs = self.config.get_spreadsheets()
         self.auth = self.config.get_auth()
         self.credentials = None
@@ -40,7 +45,7 @@ class Reporter(object):
 
     def get_sheet_name(self, spec):
         return datetime.today().strftime("%m-%d-%y")
-
+        
     def write_headers(self, sheet, headers):
         start_cell = sheet.get_addr_int(1, 1)
         end_cell = sheet.get_addr_int(1, len(headers))
@@ -57,10 +62,6 @@ class Reporter(object):
 
         def _commit():
             sheet.add_rows(row_count)
-            print(
-                sheet.get_addr_int(start_row, 1),
-                sheet.get_addr_int(row_count + start_row - 1, header_count),
-            )
             alphanum = '{}:{}'.format(
                 sheet.get_addr_int(start_row, 1),
                 sheet.get_addr_int(row_count + start_row - 1, header_count),
@@ -85,31 +86,26 @@ class Reporter(object):
         if row_count:
             _commit()
 
-
-    def _import_single(self, spec, fl):
+    def upload(self, spec_name):
+        spec = self.specs.get(spec_name)
+        if not spec:
+            raise KeyError('Spreadsheet "{}" is not configured'.format(spec_name))
+        logger.info('Uploading "{}"...'.format(spec_name))
+            
         file_path = spec('file')
-        ext = os.path.splitext(file_path)[1][1:]
-        backend = BACKENDS.get(ext)
-        if not backend:
-            raise ValueError('Input source of format "{}" is not supported'.format(ext.upper()))
+        sheet_name = self.get_sheet_name(spec)
+        
+        with open(file_path, 'r') as fileobj:
+            ext = os.path.splitext(file_path)[1][1:]
+            backend = BACKENDS.get(ext)
+            if not backend:
+                raise ValueError('Input source of format "{}" is not supported'.format(ext.upper()))
 
-        headers, rows = backend(fl)
-        gdoc = self.client.open_by_key(spec('key'))
-        sheet = gdoc.add_worksheet(self.get_sheet_name(spec), 1, len(headers))
-        self.write_headers(sheet, headers)
-        self.write_rows(sheet, rows, len(headers))
-
-    def import_all(self):
-        for sheet_spec in self.specs:
-            with open(sheet_spec('file', 'r')) as fl:
-                self._import_single(sheet_spec, fl)
-
-
-def main():
-    config_path = CONFIG_PATH
-    reporter = Reporter(config_path)
-    reporter.initialize()
-    reporter.import_all()
-
-if __name__ == '__main__':
-    main()
+            headers, rows = backend(fileobj)
+            gdoc = self.client.open_by_key(spec('key'))
+            sheet = gdoc.add_worksheet(sheet_name, 1, len(headers))
+            
+            self.write_headers(sheet, headers)
+            self.write_rows(sheet, rows, len(headers))
+            
+        logger.info('Successfully uploaded "{}" as sheet "{}".'.format(spec_name, sheet_name))

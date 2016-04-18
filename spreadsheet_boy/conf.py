@@ -8,7 +8,7 @@ except ImportError:
 
 
 DEFAULT_CONFIG = {
-    'auth': {
+    'app': {
         'scope': 'https://spreadsheets.google.com/feeds',
     }
 }
@@ -27,16 +27,16 @@ class Config(object):
         return DEFAULT_CONFIG[section].get(key)
 
     def get_auth(self):
-        scope = self.get_key('auth', 'scope')
-        key_file = self.get_key('auth', 'key_file')
+        scope = self.get_key('app', 'scope')
+        key_file = self.get_key('app', 'key_file')
         return scope, key_file
 
     def get_spreadsheets(self):
-        specs = (self.get_key('core', 'spreadsheets') or '').strip().splitlines()
-        spreadsheets = []
+        specs = (self.get_key('app', 'spreadsheets') or '').strip().splitlines()
+        spreadsheets = {}
         for doc in specs:
             section = 'doc:{}'.format(doc)
             if not self.parser.has_section(section):
                 raise ValueError('Spreadsheet section "{}" has not been described.'.format(section))
-            spreadsheets.append(partial(self.parser.get, section))
+            spreadsheets[doc] = partial(self.parser.get, section)
         return spreadsheets
