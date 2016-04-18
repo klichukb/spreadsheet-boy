@@ -11,7 +11,7 @@ from spreadsheet_boy.conf import Config
 
 logger = logging.getLogger('spreadsheets')
 
-CONFIG_PATH = 'reporter.cfg'
+CONFIG_PATH = 'spreadsheets.cfg'
 
 def get_parser():
     parser = ArgumentParser(prog='PROD')

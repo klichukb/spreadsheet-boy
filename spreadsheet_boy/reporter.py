@@ -17,6 +17,12 @@ logger = getLogger('spreadsheets.reporter')
 
 
 def backend(extension):
+    """
+    Registers a backend function for reading a table.
+    
+    Args:
+        extension (str): File extension that represents the backend,
+    """
     def wrapper(func):
         BACKENDS[extension] = func
         return func
