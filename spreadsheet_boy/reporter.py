@@ -7,6 +7,7 @@ from datetime import datetime
 from logging import getLogger
 
 import gspread
+from gspread.exceptions import WorksheetNotFound
 from oauth2client.service_account import ServiceAccountCredentials
 
 from conf import Config
@@ -59,9 +60,14 @@ class Reporter(object):
         batch = []
         row_count = 0
         start_row = 2
+        available = sheet.row_count - 1
 
-        def _commit():
-            sheet.add_rows(row_count)
+        def _commit(available):
+            if available < row_count:
+                sheet.add_rows(row_count - available)
+                available = 0
+            else:
+                available -= row_count
             alphanum = '{}:{}'.format(
                 sheet.get_addr_int(start_row, 1),
                 sheet.get_addr_int(row_count + start_row - 1, header_count),
@@ -70,6 +76,7 @@ class Reporter(object):
             for cell, value in zip(cells, batch):
                 cell.value = value
             sheet.update_cells(cells)
+            return available
 
         for row in rows:
             row_count += 1
@@ -78,15 +85,16 @@ class Reporter(object):
                 continue
 
             # commit
-            _commit()
+            available = _commit(available)
             start_row += row_count
             row_count = 0
             batch = []
 
         if row_count:
-            _commit()
-
-    def upload(self, spec_name):
+            available = _commit(available) 
+            
+    def upload(self, spec_name, update=False):
+        create = not update
         spec = self.specs.get(spec_name)
         if not spec:
             raise KeyError('Spreadsheet "{}" is not configured'.format(spec_name))
@@ -94,18 +102,27 @@ class Reporter(object):
             
         file_path = spec('file')
         sheet_name = self.get_sheet_name(spec)
+        ext = os.path.splitext(file_path)[1][1:]
+        backend = BACKENDS.get(ext)
         
-        with open(file_path, 'r') as fileobj:
-            ext = os.path.splitext(file_path)[1][1:]
-            backend = BACKENDS.get(ext)
-            if not backend:
-                raise ValueError('Input source of format "{}" is not supported'.format(ext.upper()))
-
-            headers, rows = backend(fileobj)
-            gdoc = self.client.open_by_key(spec('key'))
-            sheet = gdoc.add_worksheet(sheet_name, 1, len(headers))
+        if not backend:
+            raise ValueError('Input source of format "{}" is not supported'.format(ext.upper()))
             
+        gdoc = self.client.open_by_key(spec('key'))
+ 
+        with open(file_path, 'r') as fileobj:
+            headers, rows = backend(fileobj)
+            sheet = None
+            if not create:
+                try:
+                    sheet = gdoc.worksheet(sheet_name)
+                except WorksheetNotFound:
+                    sheet = None
+            create = not sheet
+            if create:
+                sheet = gdoc.add_worksheet(sheet_name, 1, len(headers))
             self.write_headers(sheet, headers)
             self.write_rows(sheet, rows, len(headers))
-            
-        logger.info('Successfully uploaded "{}" as sheet "{}".'.format(spec_name, sheet_name))
+           
+        logger.info('Successfully uploaded "{}": {} sheet "{}".'.format(
+            spec_name, 'created' if create else 'updated', sheet_name))

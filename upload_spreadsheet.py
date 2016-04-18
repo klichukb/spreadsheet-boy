@@ -35,7 +35,7 @@ def main():
     reporter = Reporter(config)
     reporter.initialize()
     for doc in args.doc or reporter.specs.keys():
-        reporter.upload(doc)
+        reporter.upload(doc, update=True)
 
 if __name__ == '__main__':
     main()
